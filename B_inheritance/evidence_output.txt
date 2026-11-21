@@ -1,0 +1,78 @@
+
+========== 1. Data overview
+train rows 140035, test rows 63270, train positive rate 0.0256
+train days 0.0..180.0, test days 180.0..240.0
+entities: train 2600, test 3094, new in test 498
+groups:   train 520, test 600, new in test 80
+test rows with unseen entity 0.150, unseen group 0.031, cold (either) 0.160
+entities by 20-day block of their first event: {0: 2447, 1: 114, 2: 29, 3: 6, 4: 3, 5: 1, 9: 471, 10: 24, 11: 3}
+
+========== 2. Starter baseline: what its 0.97 is worth
+starter.py output: Random-split ROC-AUC: 0.969977 | Saved submission.csv
+starter submission on reconstructed test labels: {'A1': 0.5843, 'A2': 0.6156, 'A3': 0.6495, 'Acold': 0.6851, 'R': np.float64(0.6256), 'score': 37.8}
+
+========== 3. Leak: f_18 / f_22 / f_11 are target encodings that include the row's own label
+f_18: key=entity_id+group_id, a=1.25 | train rows matching formula (1e-9): 1.0000 | test rows matching train-only TE: 1.0000 | AUC in train (leaky): 0.950 | same TE fitted on days<=120, AUC on days>120: 0.547 | provided test feature vs reconstructed labels: 0.553
+f_22: key=entity_id, a=5 | train rows matching formula (1e-9): 1.0000 | test rows matching train-only TE: 1.0000 | AUC in train (leaky): 0.749 | same TE fitted on days<=120, AUC on days>120: 0.526 | provided test feature vs reconstructed labels: 0.526
+f_11: key=group_id, a=10 | train rows matching formula (1e-9): 1.0000 | test rows matching train-only TE: 1.0000 | AUC in train (leaky): 0.613 | same TE fitted on days<=120, AUC on days>120: 0.499 | provided test feature vs reconstructed labels: 0.501
+share of train rows whose (entity,group) pair occurs once: 0.089, <=3 times: 0.138
+
+========== 4. Decoded features: max |recomputed - provided| over all rows (train+test)
+{'f_01': 0.0, 'f_21': 5.7e-14, 'f_06': 0.0, 'f_10': 0.0, 'f_08': 0.0, 'f_00': 3.3e-12, 'f_19': 1.2e-12, 'f_14': 3.1e-05, 'f_20': 1e-13, 'f_07': 0.0, 'f_05': 5.7e-14, 'f_12': 0.0, 'f_04': 0.0, 'f_03': 0.0, 'f_09': 6.3e-13, 'f_17': 0.0}
+f_15 (train rows): 9.71445146547012e-17 | f_13 (train rows): 9.71445146547012e-17
+f_23 == hour of day: 1.0
+f_02: distinct values per day (max): 1 | corr(f_02[day], f_02[day+30]): 0.9731 | corr at lag 15: -0.964
+test rows: implied label sums are integers -> max distance to integer: entity 1.0e-14, group 1.8e-14; rows with S_entity>0: 0.266
+
+========== 5. How persistent is entity / group risk
+entity_id: correlation of target rate, first 90 days vs last 90 days: 0.077 (n=1198)
+group_id: correlation of target rate, first 90 days vs last 90 days: 0.034 (n=520)
+
+========== 6. Where the signal is, and how it drifts (train = real labels, days>=180 = reconstructed labels)
+positive rate, % (columns = subsets of rows)
+   days     n  rate  amount_spike  no_spike  cat_combo  no_combo  night  day_time  new_pair  old_pair  auc_amount  auc_f20
+   0-30 20999  2.75         15.44      1.47       2.74      2.75   6.11      2.56      2.84      2.64        0.74     0.70
+  30-60 22043  2.64         15.81      1.32       1.99      2.65   4.58      2.53      4.16      2.21        0.77     0.75
+  60-90 22649  2.74         14.12      1.57       3.02      2.73   5.20      2.61      5.26      2.33        0.72     0.71
+ 90-120 24002  2.65         15.18      1.38       1.78      2.68   4.48      2.55      5.69      2.27        0.76     0.75
+120-150 24823  2.38         11.97      1.42       4.89      2.31   3.88      2.30      5.57      2.04        0.71     0.70
+150-180 25519  2.23          9.05      1.54       9.84      2.01   4.28      2.12      5.36      1.92        0.68     0.67
+180-210 30370  2.32          8.73      1.70       8.92      2.14   3.22      2.27      4.52      1.95        0.65     0.64
+210-240 29964  2.22          8.86      1.56      10.44      1.98   3.45      2.15      5.59      1.83        0.68     0.67
+share of rows: amount_spike 0.091, cat_combo 0.028, night 0.053, new_pair 0.171
+
+========== 7. Label reconstruction from f_13 / f_15
+self-test on train (labels after day 120 hidden): hidden 50342, reconstructed 47976 (95.300%), accuracy on reconstructed 1.000000, positives found 1070 of 1162
+test: reconstructed 60334 of 63270 (95.360%), positive rate among them 0.0227
+test coverage by 10-day block: {0: 0.999, 1: 0.999, 2: 0.999, 3: 0.997, 4: 0.998, 5: 0.748} | among cold rows: 0.948
+unreconstructed rows: 2936, of them later than day 237.5: 0.923
+
+========== 8. Honest model: validation inside train (fit on days<=150, score days 150-180, simulated cold start)
+       A1      A2      A3   Acold       R  score  cold_share
+0  0.7533  0.7281  0.7140  0.6439  0.6879   68.9       0.191
+1  0.7448  0.7303  0.7129  0.6770  0.7031   76.6       0.189
+2  0.7468  0.7376  0.7146  0.7105  0.7217   85.9       0.188
+3  0.7451  0.7326  0.7160  0.7083  0.7198   84.9       0.191
+mean over 4 cold draws: {'A1': 0.7475, 'A2': 0.7322, 'A3': 0.7144, 'Acold': 0.6849, 'R': 0.7081, 'score': 79.075, 'cold_share': 0.1898}
+
+========== 9. Final honest model measured on reconstructed test labels
+train frame rows: 231048 | of them simulated-cold copies: 91013
+honest model: {'A1': 0.7107, 'A2': 0.7186, 'A3': 0.7664, 'Acold': 0.7384, 'R': np.float64(0.7282), 'score': 89.1}
+single feature r_med: {'A1': 0.6597, 'A2': 0.6494, 'A3': 0.6856, 'Acold': 0.6687, 'R': np.float64(0.662), 'score': 56.0}
+single feature f_20: {'A1': 0.6485, 'A2': 0.6435, 'A3': 0.6802, 'Acold': 0.6551, 'R': np.float64(0.6533), 'score': 51.7}
+feature importance (gain share): {'r_med': 0.473, 'r30': 0.166, 'f_20': 0.055, 'p_dt': 0.036, 'f_23': 0.033, 'la': 0.032, 'cat_01': 0.029, 'c01': 0.024, 'e_ngrp_c': 0.022, 'cat_00': 0.021, 'p_cnt_c': 0.019, 'f_17': 0.019, 'e_sd': 0.016, 'f_13': 0.016, 'cv30': 0.015, 'f_15': 0.012, 'e_nall': 0.01, 'age': 0.003}
+
+========== 10. Ceiling: the same features trained on the reconstructed test labels themselves (5-fold CV grouped by entity)
+in-test CV: {'A1': 0.7024, 'A2': 0.7192, 'A3': 0.754, 'Acold': 0.7305, 'R': np.float64(0.7208), 'score': 85.4}
+
+========== 11. Ablations: what each design decision is worth (R inside train = mean over 4 cold draws; R on test = reconstructed labels)
+final configuration                                        | inside train: R=0.7081 Acold=0.6849 | test: A1=0.7107 A2=0.7186 A3=0.7664 Acold=0.7384 R=0.7282 score=89.1
+no recency weights                                         | inside train: R=0.7044 Acold=0.6824 | test: A1=0.7087 A2=0.7143 A3=0.7570 Acold=0.7328 R=0.7237 score=86.9
+recency weights tau=20 days                                | inside train: R=0.7021 Acold=0.6814 | test: A1=0.7044 A2=0.7160 A3=0.7721 Acold=0.7352 R=0.7253 score=87.7
+no simulated-cold copies                                   | inside train: R=0.7070 Acold=0.6825 | test: A1=0.7072 A2=0.7210 A3=0.7631 Acold=0.7367 R=0.7262 score=88.1
+without entity amount profile (r_med, e_sd, e_nall)        | inside train: R=0.7078 Acold=0.6875 | test: A1=0.7024 A2=0.7192 A3=0.7612 Acold=0.7275 R=0.7213 score=85.6
+without the category interaction c01                       | inside train: R=0.7072 Acold=0.6847 | test: A1=0.7079 A2=0.7164 A3=0.7663 Acold=0.7358 R=0.7260 score=88.0
+without lagged label rates f_13, f_15                      | inside train: R=0.7112 Acold=0.6880 | test: A1=0.7083 A2=0.7244 A3=0.7660 Acold=0.7391 R=0.7283 score=89.1
+final + leaky f_18, f_22, f_11 as provided                 | inside train: R=0.9634 Acold=0.9620 | test: A1=0.6060 A2=0.6268 A3=0.6702 Acold=0.6800 R=0.6387 score=44.3
+inherited pipeline features only, leaks removed            | inside train: R=0.7026 Acold=0.6857 | test: A1=0.6908 A2=0.7137 A3=0.7496 Acold=0.7101 R=0.7092 score=79.6
+inherited pipeline features incl. leaks (starter-like)     | inside train: R=0.9609 Acold=0.9594 | test: A1=0.5940 A2=0.6105 A3=0.6574 Acold=0.6592 R=0.6236 score=36.8

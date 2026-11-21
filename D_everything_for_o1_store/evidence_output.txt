@@ -1,0 +1,5 @@
+N = 10000000
+random, weights join/serve/close/open = 5/4/2/2: events 10000000, served 3637548, wall 0.19s, peak RSS so far 158 MiB, 20000-event prefix equals naive simulation: True
+random, frequent close/open = 3/2/6/6: events 10000000, served 1817909, wall 0.20s, peak RSS so far 158 MiB, 20000-event prefix equals naive simulation: True
+random, mostly joins = 10/1/1/1 (long queues): events 10000000, served 833200, wall 0.15s, peak RSS so far 158 MiB, 20000-event prefix equals naive simulation: True
+adversarial: n/2 joins, then n/2 alternating close/open: events 9999990, served 10, wall 0.08s, peak RSS so far 158 MiB, 20000-event prefix equals naive simulation: True
